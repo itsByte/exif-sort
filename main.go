@@ -20,8 +20,9 @@ func main() {
 		return
 	}
 	defer et.Close()
-	in := flag.String("in", "indir", "input directory")
-	out := flag.String("out", "outdir", "output directory")
+	in := flag.String("in", "indir", "Input directory")
+	out := flag.String("out", "outdir", "Output directory")
+	parsesize := flag.Bool("parsesize", false, "Sort by size when the make model is Unknown. Useful for screenshots")
 	flag.Usage = func() {
 		fmt.Println("Usage: exif-sort --in {input_dir} --out {output_dir}")
 	}
@@ -51,14 +52,14 @@ func main() {
 			return
 		}
 	}
-	err = iterateFolder(*in, *et, *out)
+	err = iterateFolder(*in, *et, *out, *parsesize)
 	if err != nil {
 		log.Println("Error while iterating folder: ", err)
 		return
 	}
 }
 
-func checkExif(path string, et exiftool.Exiftool) (string, error) {
+func checkExif(path string, et exiftool.Exiftool, field string) (string, error) {
 	fileInfos := et.ExtractMetadata(path)
 	if len(fileInfos) > 1 {
 		return "", errors.New("more than one file has been scanned")
@@ -67,7 +68,7 @@ func checkExif(path string, et exiftool.Exiftool) (string, error) {
 	if fileInfo.Err != nil {
 		return "", fileInfo.Err
 	}
-	model, err := fileInfo.GetString("Model")
+	value, err := fileInfo.GetString(field)
 	if err == exiftool.ErrKeyNotFound {
 		return "Unknown", nil
 	}
@@ -75,7 +76,7 @@ func checkExif(path string, et exiftool.Exiftool) (string, error) {
 		return "", err
 	}
 
-	return model, nil
+	return value, nil
 }
 
 func checkFolder(outdir string, model string) error {
@@ -118,7 +119,7 @@ func copyImage(src string, dst string) error {
 	return nil
 }
 
-func iterateFolder(in string, et exiftool.Exiftool, out string) error {
+func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) error {
 	err := filepath.Walk(in, func(path string, f fs.FileInfo, err error) error {
 		if err != nil {
 			log.Println("Failure accessing ", path, ": ", err)
@@ -130,11 +131,19 @@ func iterateFolder(in string, et exiftool.Exiftool, out string) error {
 			}
 			return nil
 		}
-		model, err := checkExif(path, et)
+		model, err := checkExif(path, et, "Model")
 		if err != nil {
 			return err
 		}
-		checkFolder(out, model)
+		if parsesize && model == "Unknown" {
+			size, err := checkExif(path, et, "ImageSize")
+			if err != nil {
+				return err
+			}
+			model = filepath.Join(model, size)
+			checkFolder(out, "Unknown")
+		}
+		err = checkFolder(out, model)
 		if err != nil {
 			return err
 		}
