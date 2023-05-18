@@ -1,4 +1,4 @@
-module github.com/itsbyte/takeout-exif
+module github.com/itsbyte/exif-sort
 
 go 1.20
 
