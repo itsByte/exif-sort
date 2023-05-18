@@ -20,9 +20,16 @@ func main() {
 		return
 	}
 	defer et.Close()
-	in := flag.String("in", "in", "input directory")
-	out := flag.String("out", "out", "output directory")
+	in := flag.String("in", "indir", "input directory")
+	out := flag.String("out", "outdir", "output directory")
+	flag.Usage = func() {
+		fmt.Println("Usage: exif-sort --in {input_dir} --out {output_dir}")
+	}
 	flag.Parse()
+	if *in == "indir" || *out == "outdir" {
+		flag.Usage()
+		return
+	}
 	*in, err = filepath.Abs(*in)
 	if err != nil {
 		log.Println("Error obtaining absolute input path: ", err)
