@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/barasher/go-exiftool"
@@ -48,6 +49,7 @@ func main() {
 		log.Println("Error obtaining absolute output path: ", err)
 		return
 	}
+	var folders []string
 	fmt.Println("Directory to scan: ", *in)
 	fmt.Println("Output directory: ", *out)
 	fmt.Println("Are you sure? Enter to continue")
@@ -60,7 +62,7 @@ func main() {
 			return
 		}
 	}
-	err = iterateFolder(*in, *et, *out)
+	err = iterateFolder(*in, *et, *out, folders)
 	if err != nil {
 		log.Println("Error while iterating folder: ", err)
 		return
@@ -87,15 +89,22 @@ func checkExif(path string, et exiftool.Exiftool) (string, error) {
 	return model, nil
 }
 
-func checkFolder(outdir string, model string) error {
+func checkFolder(outdir string, model string, folders []string) ([]string, error) {
 	modelpath := filepath.Join(outdir, model)
+	i := sort.SearchStrings(folders, modelpath)
+	if i < len(folders) && folders[i] == modelpath {
+		return folders, nil
+	}
 	if _, err := os.Stat(modelpath); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(modelpath, os.ModePerm)
 		if err != nil {
-			return err
+			return folders, err
 		}
 	}
-	return nil
+	folders = append(folders, "")
+	copy(folders[i+1:], folders[i:])
+	folders[i] = modelpath
+	return folders, nil
 }
 
 func copyImage(src string, dst string) error {
@@ -127,7 +136,7 @@ func copyImage(src string, dst string) error {
 	return nil
 }
 
-func iterateFolder(in string, et exiftool.Exiftool, out string) error {
+func iterateFolder(in string, et exiftool.Exiftool, out string, folders []string) error {
 	err := filepath.Walk(in, func(path string, f fs.FileInfo, err error) error {
 		if err != nil {
 			log.Println("Failure accessing ", path, ": ", err)
@@ -143,7 +152,7 @@ func iterateFolder(in string, et exiftool.Exiftool, out string) error {
 		if err != nil {
 			return err
 		}
-		checkFolder(out, model)
+		folders, err = checkFolder(out, model, folders)
 		if err != nil {
 			return err
 		}
