@@ -9,9 +9,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/barasher/go-exiftool"
 )
+
+func timer(name string) func() {
+	start := time.Now()
+	return func() {
+		fmt.Printf("%s took %v\n", name, time.Since(start))
+	}
+}
 
 func main() {
 	et, err := exiftool.NewExiftool()
@@ -44,6 +52,7 @@ func main() {
 	fmt.Println("Output directory: ", *out)
 	fmt.Println("Are you sure? Enter to continue")
 	fmt.Scanln()
+	defer timer("main")()
 	if _, err := os.Stat(*out); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(*out, os.ModePerm)
 		if err != nil {
