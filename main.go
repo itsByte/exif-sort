@@ -16,7 +16,7 @@ import (
 func main() {
 	et, err := exiftool.NewExiftool()
 	if err != nil {
-		fmt.Printf("Error when intializing ExifTool: %v\n", err)
+		log.Println("Error when intializing ExifTool: ", err)
 		return
 	}
 	defer et.Close()
@@ -25,12 +25,12 @@ func main() {
 	flag.Parse()
 	*in, err = filepath.Abs(*in)
 	if err != nil {
-		fmt.Println("Error in input path")
+		log.Println("Error obtaining absolute input path: ", err)
 		return
 	}
 	*out, err = filepath.Abs(*out)
 	if err != nil {
-		fmt.Printf("Error in output path")
+		log.Println("Error obtaining absolute output path: ", err)
 		return
 	}
 	fmt.Println("Directory to scan: ", *in)
@@ -40,10 +40,15 @@ func main() {
 	if _, err := os.Stat(*out); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(*out, os.ModePerm)
 		if err != nil {
-			log.Println(err)
+			log.Println("Error creating output directory: ", err)
+			return
 		}
 	}
-	iterateFolder(*in, *et, *out)
+	err = iterateFolder(*in, *et, *out)
+	if err != nil {
+		log.Println("Error while iterating folder: ", err)
+		return
+	}
 }
 
 func checkExif(path string, et exiftool.Exiftool) (string, error) {
@@ -53,81 +58,88 @@ func checkExif(path string, et exiftool.Exiftool) (string, error) {
 	}
 	fileInfo := fileInfos[0]
 	if fileInfo.Err != nil {
-		fmt.Printf("Error concerning %v: %v\n", fileInfo.File, fileInfo.Err)
 		return "", fileInfo.Err
 	}
 	model, err := fileInfo.GetString("Model")
+	if err == exiftool.ErrKeyNotFound {
+		return "Unknown", nil
+	}
 	if err != nil {
 		return "", err
 	}
+
 	return model, nil
 }
 
-func checkFolder(outdir string, model string) {
+func checkFolder(outdir string, model string) error {
 	modelpath := filepath.Join(outdir, model)
 	if _, err := os.Stat(modelpath); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(modelpath, os.ModePerm)
 		if err != nil {
-			log.Println(err)
+			return err
 		}
 	}
+	return nil
 }
 
-func copyImage(src string, dst string) {
+func copyImage(src string, dst string) error {
 	srcStat, err := os.Stat(src)
 	if err != nil {
-		return
+		return err
 	}
 
 	if !srcStat.Mode().IsRegular() {
-		return
+		return err
 	}
 
 	source, err := os.Open(src)
 	if err != nil {
-		return
+		return err
 	}
 	defer source.Close()
 
 	destination, err := os.Create(dst)
 	if err != nil {
-		return
+		return err
 	}
+
 	defer destination.Close()
 	_, err = io.Copy(destination, source)
 	if err != nil {
-		println("Error")
+		return err
 	}
+	return nil
 }
 
-func iterateFolder(in string, et exiftool.Exiftool, out string) {
+func iterateFolder(in string, et exiftool.Exiftool, out string) error {
 	err := filepath.Walk(in, func(path string, f fs.FileInfo, err error) error {
 		if err != nil {
-			fmt.Printf("Prevent panic by handling failure accessing a path %q: %v\n", path, err)
-			return err
-		}
-		if err != nil {
+			log.Println("Failure accessing ", path, ": ", err)
 			return err
 		}
 		if f.IsDir() {
 			if path == out {
 				return filepath.SkipDir
 			}
-			fmt.Println("Scanning Directory:", f.Name())
 			return nil
 		}
 		model, err := checkExif(path, et)
 		if err != nil {
 			return err
 		}
-		fmt.Println(model)
 		checkFolder(out, model)
-		copyImage(path, filepath.Join(out, model, f.Name()))
+		if err != nil {
+			return err
+		}
+		err = copyImage(path, filepath.Join(out, model, f.Name()))
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
 	if err != nil {
-		fmt.Printf("Error walking the path")
-		return
+		return err
 	}
+	return nil
 }
