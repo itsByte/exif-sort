@@ -131,28 +131,11 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 			}
 			return nil
 		}
-		model, err := checkExif(path, et, "Model")
+		model, err := getModel(path, out, et, parsesize, f)
 		if err != nil {
 			return err
 		}
-		if parsesize && model == "Unknown" {
-			size, err := checkExif(path, et, "ImageSize")
-			if err != nil {
-				return err
-			}
-			if size != "Unknown" {
-				model = filepath.Join(model, size)
-			}
-			checkFolder(out, "Unknown")
-			if err != nil {
-				return err
-			}
-		}
-		err = checkFolder(out, model)
-		if err != nil {
-			return err
-		}
-		err = copyImage(path, filepath.Join(out, model, f.Name()))
+		go copyImage(path, filepath.Join(out, model, f.Name()))
 		if err != nil {
 			return err
 		}
@@ -163,4 +146,30 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 		return err
 	}
 	return nil
+}
+
+func getModel(path string, out string, et exiftool.Exiftool, parsesize bool, f fs.FileInfo) (string, error) {
+	model, err := checkExif(path, et, "Model")
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	if parsesize && model == "Unknown" {
+		size, err := checkExif(path, et, "ImageSize")
+		if err != nil {
+			return "", err
+		}
+		if size != "Unknown" {
+			model = filepath.Join(model, size)
+		}
+		checkFolder(out, "Unknown")
+		if err != nil {
+			return "", err
+		}
+	}
+	err = checkFolder(out, model)
+	if err != nil {
+		return "", err
+	}
+	return model, nil
 }
