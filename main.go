@@ -59,15 +59,19 @@ func main() {
 	}
 }
 
-func checkExif(path string, et exiftool.Exiftool, field string) (string, error) {
+func getExif(path string, et exiftool.Exiftool) (exiftool.FileMetadata, error) {
 	fileInfos := et.ExtractMetadata(path)
 	if len(fileInfos) > 1 {
-		return "", errors.New("more than one file has been scanned")
+		return exiftool.EmptyFileMetadata(), errors.New("more than one file has been scanned")
 	}
 	fileInfo := fileInfos[0]
 	if fileInfo.Err != nil {
-		return "", fileInfo.Err
+		return exiftool.EmptyFileMetadata(), fileInfo.Err
 	}
+	return fileInfo, nil
+}
+
+func getField(fileInfo exiftool.FileMetadata, field string) (string, error) {
 	value, err := fileInfo.GetString(field)
 	if err == exiftool.ErrKeyNotFound {
 		return "Unknown", nil
@@ -75,7 +79,6 @@ func checkExif(path string, et exiftool.Exiftool, field string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-
 	return value, nil
 }
 
@@ -131,12 +134,16 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 			}
 			return nil
 		}
-		model, err := checkExif(path, et, "Model")
+		fileInfo, err := getExif(path, et)
+		if err != nil {
+			return err
+		}
+		model, err := getField(fileInfo, "Model")
 		if err != nil {
 			return err
 		}
 		if parsesize && model == "Unknown" {
-			size, err := checkExif(path, et, "ImageSize")
+			size, err := getField(fileInfo, "ImageSize")
 			if err != nil {
 				return err
 			}
