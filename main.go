@@ -140,8 +140,13 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 			if err != nil {
 				return err
 			}
-			model = filepath.Join(model, size)
+			if size != "Unknown" {
+				model = filepath.Join(model, size)
+			}
 			checkFolder(out, "Unknown")
+			if err != nil {
+				return err
+			}
 		}
 		err = checkFolder(out, model)
 		if err != nil {
