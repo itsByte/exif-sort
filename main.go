@@ -24,7 +24,11 @@ func main() {
 	out := flag.String("out", "outdir", "Output directory")
 	parsesize := flag.Bool("parsesize", false, "Sort by size when the make model is Unknown. Useful for screenshots")
 	flag.Usage = func() {
+		fmt.Println()
 		fmt.Println("Usage: exif-sort --in {input_dir} --out {output_dir}")
+		fmt.Println()
+		fmt.Println("Use --parsesize to sort by size when the make model is Unknown")
+		fmt.Println()
 	}
 	flag.Parse()
 	if *in == "indir" || *out == "outdir" {
@@ -135,21 +139,25 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 		}
 		fileInfo, err := getExif(src, et)
 		if err != nil {
+			log.Println("Error accessing EXIF Data for file ", src, ": ", err)
 			return err
 		}
 		model, err := getField(fileInfo, "Model")
 		if err != nil {
+			log.Println("Error accessing EXIF Data for file ", src, ": ", err)
 			return err
 		}
 		dest := filepath.Join(out, model)
 		if parsesize && model == "Unknown" {
 			size, err := getField(fileInfo, "ImageSize")
 			if err != nil {
+				log.Println("Error accessing EXIF Data for file ", src, ": ", err)
 				return err
 			}
 			if size != "Unknown" {
 				checkFolder(dest)
 				if err != nil {
+					log.Println("Error checking folder ", dest, ": ", err)
 					return err
 				}
 				dest = filepath.Join(dest, size)
@@ -157,10 +165,12 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 		}
 		err = checkFolder(dest)
 		if err != nil {
+			log.Println("Error checking folder ", dest, ": ", err)
 			return err
 		}
 		err = copyImage(src, filepath.Join(dest, f.Name()))
 		if err != nil {
+			log.Println("Error copying image ", dest, ": ", err)
 			return err
 		}
 		return nil
