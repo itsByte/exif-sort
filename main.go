@@ -59,8 +59,8 @@ func main() {
 	}
 }
 
-func getExif(path string, et exiftool.Exiftool) (exiftool.FileMetadata, error) {
-	fileInfos := et.ExtractMetadata(path)
+func getExif(src string, et exiftool.Exiftool) (exiftool.FileMetadata, error) {
+	fileInfos := et.ExtractMetadata(src)
 	if len(fileInfos) > 1 {
 		return exiftool.EmptyFileMetadata(), errors.New("more than one file has been scanned")
 	}
@@ -82,10 +82,9 @@ func getField(fileInfo exiftool.FileMetadata, field string) (string, error) {
 	return value, nil
 }
 
-func checkFolder(outdir string, model string) error {
-	modelpath := filepath.Join(outdir, model)
-	if _, err := os.Stat(modelpath); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(modelpath, os.ModePerm)
+func checkFolder(folder string) error {
+	if _, err := os.Stat(folder); errors.Is(err, os.ErrNotExist) {
+		err := os.Mkdir(folder, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -93,7 +92,7 @@ func checkFolder(outdir string, model string) error {
 	return nil
 }
 
-func copyImage(src string, dst string) error {
+func copyImage(src string, dest string) error {
 	srcStat, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -109,7 +108,7 @@ func copyImage(src string, dst string) error {
 	}
 	defer source.Close()
 
-	destination, err := os.Create(dst)
+	destination, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
@@ -123,18 +122,18 @@ func copyImage(src string, dst string) error {
 }
 
 func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) error {
-	err := filepath.Walk(in, func(path string, f fs.FileInfo, err error) error {
+	err := filepath.Walk(in, func(src string, f fs.FileInfo, err error) error {
 		if err != nil {
-			log.Println("Failure accessing ", path, ": ", err)
+			log.Println("Failure accessing ", src, ": ", err)
 			return err
 		}
 		if f.IsDir() {
-			if path == out {
+			if src == out {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		fileInfo, err := getExif(path, et)
+		fileInfo, err := getExif(src, et)
 		if err != nil {
 			return err
 		}
@@ -142,24 +141,25 @@ func iterateFolder(in string, et exiftool.Exiftool, out string, parsesize bool) 
 		if err != nil {
 			return err
 		}
+		dest := filepath.Join(out, model)
 		if parsesize && model == "Unknown" {
 			size, err := getField(fileInfo, "ImageSize")
 			if err != nil {
 				return err
 			}
 			if size != "Unknown" {
-				model = filepath.Join(model, size)
-			}
-			checkFolder(out, "Unknown")
-			if err != nil {
-				return err
+				checkFolder(dest)
+				if err != nil {
+					return err
+				}
+				dest = filepath.Join(dest, size)
 			}
 		}
-		err = checkFolder(out, model)
+		err = checkFolder(dest)
 		if err != nil {
 			return err
 		}
-		err = copyImage(path, filepath.Join(out, model, f.Name()))
+		err = copyImage(src, filepath.Join(dest, f.Name()))
 		if err != nil {
 			return err
 		}
